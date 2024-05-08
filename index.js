@@ -52,11 +52,14 @@ async function run() {
         expiresIn: "1h",
       });
 
-      // const token = jwt.sign(user, "secret", {
-      //   expiresIn: "1h",
-      // });
       console.log(user);
-      res.send(token);
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: false,
+          sameSite: "none",
+        })
+        .send({ success: true });
     });
   } finally {
     // Ensures that the client will close when you finish/error
