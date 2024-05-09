@@ -1,5 +1,5 @@
 const express = require("express");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 require("dotenv").config();
@@ -31,6 +31,18 @@ const client = new MongoClient(uri, {
   },
 });
 
+// middlewares
+const logger = (req, res, next) => {
+  console.log("log: info ", req.method, req.url);
+  next();
+};
+
+const verifyToken = (req, res, next) => {
+  const token = req?.cookies?.token;
+  console.log("token inside middleware", req.cookies.token);
+  next();
+};
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -41,29 +53,73 @@ async function run() {
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
 
+    const serviceCollection = client.db("carDoctor").collection("services");
+    const bookingCollection = client.db("carDoctor").collection("bookings");
+
     app.get("/", (req, res) => {
       res.send("hello server!");
     });
 
     // auth related api
-
     app.post("/jwt", (req, res) => {
       const user = req.body;
 
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "1h",
+        expiresIn: "6h",
       });
 
-      console.log(user);
       res
         .cookie("token", token, {
           httpOnly: true,
-          secure: false,
-          sameSite: "none",
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
         })
         .send({ success: true });
+    });
 
-      // application api
+    // clear cookie
+    app.post("/logout", (req, res) => {
+      const user = req.body;
+      console.log("logout user", user);
+      res.clearCookie("token", { maxAge: 0 }).send({ success: true });
+    });
+
+    // application api
+
+    app.get("/services", async (req, res) => {
+      console.log("services", req.cookies.token);
+      const services = await serviceCollection.find().toArray();
+      res.send(services);
+    });
+
+    app.get("/services/:id", logger, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const services = await serviceCollection.findOne(query);
+      res.send(services);
+    });
+
+    app.post("/bookings", async (req, res) => {
+      const booking = req.body;
+      const result = await bookingCollection.insertOne(booking);
+      res.send(result);
+    });
+
+    app.get("/bookings", async (req, res) => {
+      console.log("inside booking ", req?.cookies?.token);
+
+      if (req.query.email !== "hrmrakibs@gmail.com") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+
+      let query = {};
+
+      if (req.query?.email) {
+        query = { email: req.query.email };
+      }
+
+      const result = await bookingCollection.find(query).toArray();
+      res.send(result);
     });
   } finally {
     // Ensures that the client will close when you finish/error
