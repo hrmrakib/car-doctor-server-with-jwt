@@ -45,6 +45,8 @@ async function run() {
       res.send("hello server!");
     });
 
+    // auth related api
+
     app.post("/jwt", (req, res) => {
       const user = req.body;
 
@@ -60,6 +62,8 @@ async function run() {
           sameSite: "none",
         })
         .send({ success: true });
+
+      // application api
     });
   } finally {
     // Ensures that the client will close when you finish/error
